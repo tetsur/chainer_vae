@@ -22,21 +22,21 @@ class VAE(chainer.Chain):
             self.ld1 = L.Linear(n_latent, n_h)
             self.ld2 = L.Linear(n_h, n_in)
 
-    def forward(self, x, relu=True):
+    def forward(self, x, sigmoid=True):
         """AutoEncoder"""
-        return self.decode(self.encode(x)[0], relu)
+        return self.decode(self.encode(x)[0], sigmoid)
 
     def encode(self, x):
-        h1 = F.relu(self.le1(x))
+        h1 = F.tanh(self.le1(x))
         mu = self.le2_mu(h1)
         ln_var = self.le2_ln_var(h1)  # log(sigma**2)
         return mu, ln_var
 
-    def decode(self, z, relu=True):
-        h1 = F.relu(self.ld1(z))
+    def decode(self, z, sigmoid=True):
+        h1 = F.tanh(self.ld1(z))
         h2 = self.ld2(h1)
-        if relu:
-            return F.relu(h2)
+        if sigmoid:
+            return F.sigmoid(h2)
         else:
             return h2
 
@@ -55,7 +55,7 @@ class VAE(chainer.Chain):
             rec_loss = 0
             for l in six.moves.range(k):
                 z = F.gaussian(mu, ln_var)
-                rec_loss += F.bernoulli_nll(x, self.decode(z, relu=False)) \
+                rec_loss += F.bernoulli_nll(x, self.decode(z, sigmoid=True)) \
                     / (k * batchsize)
             self.rec_loss = rec_loss
             self.loss = self.rec_loss + \
