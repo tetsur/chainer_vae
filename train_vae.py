@@ -17,7 +17,7 @@ def main():
                         help='Initialize the model from given file')
     parser.add_argument('--resume', '-r', default='',
                         help='Resume the optimization from snapshot')
-    parser.add_argument('--gpu', '-g', default=0, type=int,
+    parser.add_argument('--gpu', '-g', default=-1, type=int,
                         help='GPU ID (negative value indicates CPU)')
     parser.add_argument('--out', '-o', default='result',
                         help='Directory to output the result')
@@ -37,14 +37,12 @@ def main():
     print('# epoch: {}'.format(args.epoch))
     print('')
 
-
-
-
     # net内VAEオブジェクトの生成
     model = net.VAE(784, args.dimz, 500)
     if 0 <= args.gpu:
         cuda.get_device_from_id(args.gpu).use()
         model.to_gpu()  # GPUを使うための処理
+    xp = np if args.gpu < 0 else cuda.cupy
 
     # optimizer(パラメータ更新用)
     optimizer = chainer.optimizers.Adam()
@@ -54,9 +52,9 @@ def main():
     if args.initmodel:
         chainer.serializers.load_npz(args.initmodel, model)
 
-
     # Load the MNIST dataset 訓練とテストのデータセット
     train, test = chainer.datasets.get_mnist(withlabel=False)
+
     if args.test:
         train, _ = chainer.datasets.split_dataset(train, 100)
         test, _ = chainer.datasets.split_dataset(test, 100)
@@ -92,20 +90,21 @@ def main():
     def save_images(x, filename):
         import matplotlib.pyplot as plt
         fig, ax = plt.subplots(3, 3, figsize=(9, 9), dpi=100)
-        for ai, xi in zip(ax.flatten(), x):
+        for ai, xi in zip(ax.flatten(), x):   #zip内のaxとxの要素を取り出す。
             ai.imshow(xi.reshape(28, 28))
         fig.savefig(filename)
 
-
     train_ind = [1, 3, 5, 10, 2, 0, 13, 15, 17]
-    x = chainer.Variable(np.asarray(train[train_ind]))
+    x = chainer.Variable(xp.asarray(train[train_ind]))
+
     with chainer.using_config('train', False), chainer.no_backprop_mode():
         x1 = model(x)
+    print(args.out)
     save_images(x.array, os.path.join(args.out, 'train'))
     save_images(x1.array, os.path.join(args.out, 'train_reconstructed'))
 
     test_ind = [3, 2, 1, 18, 4, 8, 11, 17, 61]
-    x = chainer.Variable(np.asarray(test[test_ind]))
+    x = chainer.Variable(xp.asarray(test[test_ind]))
     with chainer.using_config('train', False), chainer.no_backprop_mode():
         x1 = model(x)
     save_images(x.array, os.path.join(args.out, 'test'))
@@ -113,7 +112,7 @@ def main():
 
     # draw images from randomly sampled z
     z = chainer.Variable(
-        np.random.normal(0, 1, (9, args.dimz)).astype(np.float32))
+        xp.random.normal(0, 1, (9, args.dimz)).astype(xp.float32))
     x = model.decode(z)
     save_images(x.array, os.path.join(args.out, 'sampled'))
 
